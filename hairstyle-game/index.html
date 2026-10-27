@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>찰떡 헤어 찾기</title>
+<style>
+  :root {
+    --bg: #fbf7f4;
+    --panel: #ffffff;
+    --ink: #2b2420;
+    --muted: #8a7f78;
+    --line: #ece4de;
+    --accent: #e0607e;
+    --accent-soft: #fde8ee;
+    --star: #f5b301;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  }
+  header { text-align: center; padding: 20px 16px 4px; }
+  header h1 { margin: 0; font-size: 26px; letter-spacing: -0.5px; }
+  header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+  main {
+    display: grid;
+    grid-template-columns: minmax(280px, 420px) minmax(300px, 520px);
+    gap: 20px;
+    justify-content: center;
+    padding: 16px;
+  }
+  .stage {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 12px;
+    position: sticky;
+    top: 12px;
+    align-self: start;
+  }
+  #portrait { width: 100%; height: auto; display: block; border-radius: 14px; background: linear-gradient(#f6eee8, #efe3da); }
+  .result { padding: 12px 6px 4px; text-align: center; }
+  .stars { font-size: 26px; color: var(--star); letter-spacing: 2px; }
+  .stars .off { color: #e3dbd5; }
+  .verdict { font-weight: 700; font-size: 18px; margin-top: 2px; }
+  .tip { color: var(--muted); font-size: 13px; margin-top: 6px; line-height: 1.5; }
+  .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 16px 18px;
+  }
+  .group { margin-bottom: 16px; }
+  .group:last-child { margin-bottom: 0; }
+  .group h2 { font-size: 14px; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  button {
+    font: inherit;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    border-radius: 999px;
+    padding: 7px 14px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background .15s, border-color .15s;
+  }
+  button:hover { border-color: var(--accent); }
+  button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .tabs { display: flex; background: #f4eee9; border-radius: 999px; padding: 4px; margin-bottom: 10px; }
+  .tabs button { flex: 1; border: none; background: transparent; }
+  .tabs button.on { background: #fff; color: var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .styles { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; }
+  .styles button { border-radius: 12px; padding: 9px 8px; }
+  .styles button small { display: block; font-size: 11px; opacity: .75; margin-top: 2px; }
+  .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+  .swatch { width: 32px; height: 32px; padding: 0; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px var(--line); }
+  .swatch.on { box-shadow: 0 0 0 2px var(--accent); background-clip: padding-box; }
+  .adjust { display: grid; grid-template-columns: 70px 1fr; gap: 8px 10px; align-items: center; font-size: 13px; }
+  .adjust input { width: 100%; accent-color: var(--accent); }
+  .lockrow { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .dex { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+  .dex span { background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 4px 10px; }
+  .dex .empty { background: none; color: var(--muted); padding: 0; }
+  @media (max-width: 760px) {
+    main { grid-template-columns: 1fr; }
+    .stage { position: static; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>💇 찰떡 헤어 찾기</h1>
+  <p>얼굴형을 고르고 머리를 바꿔 보면서 가장 잘 어울리는 스타일을 찾아보세요</p>
+</header>
+
+<main>
+  <section class="stage">
+    <svg id="portrait" viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="result">
+      <div class="stars" id="stars"></div>
+      <div class="verdict" id="verdict"></div>
+      <div class="tip" id="tip"></div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="recommend">✨ 찰떡 추천받기</button>
+      <button id="random">🎲 랜덤</button>
+      <button id="save">📷 사진 저장</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="group">
+      <h2>성별</h2>
+      <div class="chips" id="gender"></div>
+    </div>
+    <div class="group">
+      <h2>얼굴형</h2>
+      <div class="chips" id="face"></div>
+    </div>
+    <div class="group">
+      <h2>피부톤</h2>
+      <div class="swatches" id="skin"></div>
+    </div>
+    <div class="group">
+      <h2>헤어스타일</h2>
+      <div class="tabs" id="length"></div>
+      <div class="styles" id="styles"></div>
+    </div>
+    <div class="group">
+      <h2>펌</h2>
+      <div class="chips" id="perm"></div>
+    </div>
+    <div class="group">
+      <h2>머리색</h2>
+      <div class="swatches" id="color"></div>
+    </div>
+    <div class="group">
+      <div class="lockrow">
+        <h2 style="margin:0">머리 위치 맞추기</h2>
+        <button id="lock">🔒 고정됨</button>
+      </div>
+      <div class="adjust">
+        <label for="dy">위 · 아래</label><input id="dy" type="range" min="-20" max="20" value="0">
+        <label for="size">크기</label><input id="size" type="range" min="90" max="112" value="100">
+      </div>
+    </div>
+    <div class="group">
+      <h2>찰떡 도감 <span id="dexCount"></span></h2>
+      <div class="dex" id="dex"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+// ---------- 데이터 ----------
+const GENDERS = { f: '여자', m: '남자' };
+
+// 얼굴 윤곽: 이마/광대/턱 너비와 턱 끝 위치
+const FACES = {
+  oval:   { name: '계란형', fw: 62, cw: 68, jw: 52, chinW: 22, chinY: 282, tip: '어떤 스타일이든 잘 어울리는 얼굴형이에요.' },
+  round:  { name: '둥근형', fw: 66, cw: 76, jw: 64, chinW: 34, chinY: 270, tip: '윗머리 볼륨과 턱선 아래 기장으로 얼굴을 길어 보이게 하세요.' },
+  square: { name: '각진형', fw: 66, cw: 70, jw: 68, chinW: 40, chinY: 276, tip: '웨이브와 레이어드로 각진 턱선을 부드럽게 감싸 주세요.' },
+  long:   { name: '긴 얼굴형', fw: 56, cw: 60, jw: 48, chinW: 22, chinY: 296, tip: '앞머리와 옆 볼륨으로 얼굴 길이를 짧아 보이게 하세요.' },
+  heart:  { name: '하트형', fw: 72, cw: 68, jw: 44, chinW: 12, chinY: 282, tip: '턱 주변에 볼륨을 주고 윗머리 볼륨은 줄여 보세요.' },
+};
+const FACE_KEYS = Object.keys(FACES);
+
+const SKINS = ['#fde3cf', '#f5cba7', '#e0ac80', '#b07850'];
+const COLORS = [
+  { name: '블랙', c: '#221c19' },
+  { name: '다크브라운', c: '#3d2819' },
+  { name: '브라운', c: '#6e4428' },
+  { name: '애쉬브라운', c: '#7d6b5d' },
+  { name: '애쉬그레이', c: '#9b9a9f' },
+  { name: '금발', c: '#d8b26a' },
+  { name: '레드', c: '#8e2f22' },
+  { name: '핑크', c: '#d97b9b' },
+];
+const LENGTHS = { s: '짧은 머리', m: '중간 머리', l: '긴 머리' };
+const PERMS = {
+  none: { name: '스트레이트' },
+  wave: { name: '웨이브펌', bonus: { square: 1, long: 1, heart: 1 } },
+  curl: { name: '컬펌', bonus: { square: 1, long: 1, round: -1 } },
+};
+
+// 머리 조각: l = 'b'(얼굴 뒤) | 'f'(얼굴 앞), m = 좌우 대칭 복사, shade = 'light'(짧게 민 부분)
+// score 순서: 계란형, 둥근형, 각진형, 긴 얼굴형, 하트형
+const STYLES = [
+  // 짧은 머리
+  { id: 'crop', name: '크롭컷', len: 's', g: 'm', score: [5, 2, 3, 4, 3], parts: [
+    { l: 'b', d: 'M72,178 C60,100 96,60 150,60 C204,60 240,100 228,178Z' },
+    { l: 'f', d: 'M80,130 C80,88 114,66 150,66 C186,66 220,88 220,130 C206,122 192,130 178,125 C162,131 140,124 124,130 C108,124 94,131 80,130Z' },
+  ]},
+  { id: 'dandy', name: '댄디컷', len: 's', g: 'm', score: [5, 3, 3, 5, 4], parts: [
+    { l: 'b', d: 'M70,182 C58,100 96,58 150,58 C204,58 242,100 230,182Z' },
+    { l: 'f', d: 'M76,146 C72,92 108,62 150,62 C192,62 228,92 224,146 C214,132 204,154 190,142 C178,156 165,142 152,154 C140,142 128,156 115,145 C104,156 90,138 76,146Z' },
+  ]},
+  { id: 'twoblock', name: '투블럭', len: 's', g: 'm', score: [5, 4, 3, 2, 3], parts: [
+    { l: 'b', d: 'M76,184 C68,112 102,72 150,72 C198,72 232,112 224,184Z', shade: 'light' },
+    { l: 'f', d: 'M80,136 C70,80 110,50 155,52 C202,54 234,86 222,134 C210,118 196,124 180,114 C160,126 130,112 110,126 C98,118 88,128 80,136Z' },
+  ]},
+  { id: 'slick', name: '올백 포마드', len: 's', g: 'm', score: [5, 4, 2, 1, 2], parts: [
+    { l: 'b', d: 'M74,180 C64,104 100,56 150,56 C200,56 236,104 226,180Z', shade: 'light' },
+    { l: 'f', d: 'M78,150 C70,88 106,48 152,48 C200,48 234,88 224,150 C220,128 212,112 198,104 C178,96 122,96 102,104 C88,112 82,128 78,150Z' },
+  ]},
+  { id: 'pixie', name: '픽시컷', len: 's', g: 'f', score: [5, 2, 3, 4, 4], parts: [
+    { l: 'b', d: 'M70,196 C58,104 96,58 150,58 C204,58 242,104 230,196Z' },
+    { l: 'f', d: 'M74,166 C64,92 104,58 152,58 C200,58 234,90 226,152 C216,132 200,116 180,110 C158,118 128,142 100,154 C88,158 80,160 74,166Z' },
+  ]},
+  { id: 'shortbob', name: '숏단발', len: 's', g: 'f', score: [5, 2, 2, 4, 4], parts: [
+    { l: 'b', d: 'M66,216 C56,110 96,56 150,56 C204,56 244,110 234,216 C220,224 206,222 196,214 L104,214 C94,222 80,224 66,216Z' },
+    { l: 'f', d: 'M78,152 C72,92 108,60 150,60 C192,60 228,92 222,152 C200,146 100,146 78,152Z' },
+    { l: 'f', m: true, d: 'M78,140 C68,170 70,200 72,218 L94,216 C86,192 84,165 88,140Z' },
+  ]},
+
+  // 중간 머리
+  { id: 'parted', name: '가르마컷', len: 'm', g: 'm', score: [5, 4, 4, 3, 4], parts: [
+    { l: 'b', d: 'M70,206 C58,108 98,56 150,56 C202,56 242,108 230,206Z' },
+    { l: 'f', m: true, d: 'M150,62 C118,62 84,80 74,122 C70,150 72,176 78,196 C84,176 86,152 96,136 C110,118 130,100 150,84Z' },
+  ]},
+  { id: 'leaf', name: '리프컷', len: 'm', g: 'm', score: [5, 3, 4, 4, 4], parts: [
+    { l: 'b', d: 'M68,208 C56,108 98,56 150,56 C202,56 244,108 232,208Z' },
+    { l: 'f', m: true, d: 'M150,62 C114,62 78,84 72,130 C70,162 74,186 82,204 C86,182 88,166 96,158 C104,150 112,152 122,152 C126,130 136,108 150,96Z' },
+  ]},
+  { id: 'wolf', name: '울프컷', len: 'm', g: 'u', score: [4, 4, 5, 3, 4], parts: [
+    { l: 'b', d: 'M64,200 C52,104 96,54 150,54 C204,54 248,104 236,200 C240,230 236,260 226,284 L214,262 L206,288 L196,252 L104,252 L94,288 L86,262 L74,284 C64,260 60,230 64,200Z' },
+    { l: 'f', m: true, d: 'M150,60 C116,60 80,80 72,130 C68,160 70,190 76,216 L84,198 L90,214 C90,182 92,160 100,146 L108,158 C112,138 122,126 132,122 L138,142 C142,120 146,100 150,92Z' },
+  ]},
+  { id: 'bob', name: '단발 보브', len: 'm', g: 'f', score: [5, 2, 2, 4, 5], parts: [
+    { l: 'b', d: 'M62,264 C48,150 80,54 150,54 C220,54 252,150 238,264 C220,274 200,272 190,264 L110,264 C100,272 80,274 62,264Z' },
+    { l: 'f', m: true, d: 'M150,60 C112,60 80,82 72,130 C66,180 70,230 80,264 L102,264 C88,222 86,172 92,142 C100,118 120,96 150,80Z' },
+  ]},
+  { id: 'ccurl', name: '중단발 C컬', len: 'm', g: 'f', score: [5, 4, 4, 4, 5], parts: [
+    { l: 'b', d: 'M58,290 C44,160 78,54 150,54 C222,54 256,160 242,290 C238,306 222,312 210,300 L90,300 C78,312 62,306 58,290Z' },
+    { l: 'f', m: true, d: 'M150,62 C114,62 78,84 70,135 C64,190 70,250 84,298 C92,308 102,302 98,292 C88,250 86,200 92,165 C98,148 112,140 124,136 C134,112 142,90 150,80Z' },
+  ]},
+
+  // 긴 머리
+  { id: 'straight', name: '긴 생머리', len: 'l', g: 'f', score: [5, 3, 3, 1, 3], parts: [
+    { l: 'b', d: 'M56,380 C40,220 70,54 150,54 C230,54 260,220 244,380 L210,390 L90,390Z' },
+    { l: 'f', m: true, d: 'M150,60 C112,60 78,84 70,135 C64,200 70,300 80,386 L102,386 C88,300 86,210 92,160 C100,120 124,92 150,78Z' },
+  ]},
+  { id: 'seethrough', name: '시스루뱅 롱', len: 'l', g: 'f', score: [5, 3, 4, 5, 4], parts: [
+    { l: 'b', d: 'M56,380 C40,220 70,54 150,54 C230,54 260,220 244,380 L210,390 L90,390Z' },
+    { l: 'f', m: true, d: 'M150,60 C112,60 78,84 70,135 C64,200 70,300 80,386 L102,386 C88,300 86,210 92,160 C100,120 124,92 150,78Z' },
+    { l: 'f', o: 0.85, d: 'M88,144 C90,102 120,74 150,74 C180,74 210,102 212,144 C204,134 199,150 190,139 C182,152 172,137 164,150 C156,137 146,152 138,139 C128,152 120,137 111,148 C103,135 95,150 88,144Z' },
+  ]},
+  { id: 'layered', name: '레이어드 롱', len: 'l', g: 'f', score: [5, 4, 5, 3, 4], parts: [
+    { l: 'b', d: 'M54,370 C38,220 68,52 150,52 C232,52 262,220 246,370 L232,388 L220,368 L206,392 L94,392 L80,368 L68,388Z' },
+    { l: 'f', d: 'M214,70 C162,52 96,70 76,120 C66,162 68,240 74,320 C80,350 94,372 100,386 C96,330 90,250 96,182 C104,142 140,122 188,112 C204,102 214,88 214,70Z' },
+    { l: 'f', d: 'M196,92 C224,108 232,136 230,182 C232,262 226,330 212,386 L198,386 C208,320 212,250 210,184 C208,148 204,118 190,104Z' },
+  ]},
+  { id: 'ponytail', name: '포니테일', len: 'l', g: 'f', score: [5, 3, 2, 2, 2], parts: [
+    { l: 'b', d: 'M214,94 C252,104 264,162 254,232 C248,282 238,322 228,352 C224,312 222,262 218,222 C214,172 206,132 196,110Z' },
+    { l: 'b', d: 'M72,176 C62,100 100,60 150,60 C200,60 238,100 228,176Z' },
+    { l: 'f', d: 'M76,150 C70,94 106,62 150,62 C194,62 230,94 224,150 C220,128 210,110 190,102 C170,96 130,96 110,102 C90,110 80,128 76,150Z' },
+  ]},
+  { id: 'longmale', name: '남자 장발', len: 'l', g: 'm', score: [4, 3, 4, 2, 3], parts: [
+    { l: 'b', d: 'M60,320 C44,190 76,54 150,54 C224,54 256,190 240,320 L206,330 L94,330Z' },
+    { l: 'f', m: true, d: 'M150,60 C114,60 80,84 72,135 C66,190 70,260 80,326 L102,326 C90,260 88,200 94,160 C102,122 124,94 150,80Z' },
+  ]},
+  { id: 'manbun', name: '맨번', len: 'l', g: 'm', score: [4, 3, 2, 2, 2], parts: [
+    { l: 'b', d: 'M124,62 C120,30 180,30 176,62 C178,78 122,78 124,62Z' },
+    { l: 'b', d: 'M72,176 C62,100 100,60 150,60 C200,60 238,100 228,176Z' },
+    { l: 'f', d: 'M76,150 C70,94 106,62 150,62 C194,62 230,94 224,150 C220,128 210,110 190,102 C170,96 130,96 110,102 C90,110 80,128 76,150Z' },
+  ]},
+];
+
+const VERDICTS = ['', '다른 스타일도 찾아봐요', '조금 아쉬워요', '무난해요', '잘 어울려요!', '찰떡이에요! 🎉'];
+
+// ---------- 상태 ----------
+const state = {
+  gender: 'f', face: 'oval', skin: 1, len: 'm', style: 'ccurl',
+  perm: 'none', color: 1, dy: 0, size: 100, locked: true,
+};
+let dex = [];
+try { dex = JSON.parse(localStorage.getItem('hair-dex') || '[]'); } catch (e) { dex = []; }
+
+// ---------- 유틸 ----------
+const $ = id => document.getElementById(id);
+function shade(hex, k) {
+  const n = parseInt(hex.slice(1), 16);
+  const f = v => Math.max(0, Math.min(255, Math.round(v * k)));
+  return '#' + [n >> 16, (n >> 8) & 255, n & 255].map(f).map(v => v.toString(16).padStart(2, '0')).join('');
+}
+function mix(a, b, t) {
+  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+  const ch = (x, s) => (x >> s) & 255;
+  return '#' + [16, 8, 0].map(s => Math.round(ch(pa, s) * (1 - t) + ch(pb, s) * t).toString(16).padStart(2, '0')).join('');
+}
+function catmull(p) {
+  const n = p.length, r = v => Math.round(v * 10) / 10;
+  let d = `M${p[0]}`;
+  for (let i = 0; i < n; i++) {
+    const p0 = p[(i - 1 + n) % n], p1 = p[i], p2 = p[(i + 1) % n], p3 = p[(i + 2) % n];
+    const c1 = [r(p1[0] + (p2[0] - p0[0]) / 6), r(p1[1] + (p2[1] - p0[1]) / 6)];
+    const c2 = [r(p2[0] - (p3[0] - p1[0]) / 6), r(p2[1] - (p3[1] - p1[1]) / 6)];
+    d += ` C${c1} ${c2} ${p2}`;
+  }
+  return d + 'Z';
+}
+function facePath(f) {
+  const x = 150;
+  return catmull([
+    [x, 90], [x + f.fw, 118], [x + f.cw, 178], [x + f.jw, 236], [x + f.chinW, f.chinY - 6], [x, f.chinY],
+    [x - f.chinW, f.chinY - 6], [x - f.jw, 236], [x - f.cw, 178], [x - f.fw, 118],
+  ]);
+}
+function styleScore(style, face, perm) {
+  const i = FACE_KEYS.indexOf(face);
+  const bonus = (PERMS[perm].bonus || {})[face] || 0;
+  return Math.max(1, Math.min(5, style.score[i] + bonus));
+}
+const stylesFor = g => STYLES.filter(s => s.g === g || s.g === 'u');
+const currentStyle = () => STYLES.find(s => s.id === state.style);
+
+// ---------- 그리기 ----------
+function hairParts(style, layer, fill, light, stroke) {
+  return style.parts.filter(p => p.l === layer).map(p => {
+    const f = p.shade === 'light' ? light : fill;
+    const attrs = `fill="${f}" stroke="${stroke}" stroke-width="1.2" stroke-linejoin="round"${p.o ? ` opacity="${p.o}"` : ''}`;
+    const one = `<path d="${p.d}" ${attrs}/>`;
+    return p.m ? one + `<path d="${p.d}" ${attrs} transform="translate(300 0) scale(-1 1)"/>` : one;
+  }).join('');
+}
+
+function render() {
+  const f = FACES[state.face];
+  const style = currentStyle();
+  const skin = SKINS[state.skin];
+  const skinDark = shade(skin, 0.82);
+  const hair = COLORS[state.color].c;
+  const hairDark = shade(hair, 0.62);
+  const hairLight = mix(hair, skin, 0.55);
+  const isF = state.gender === 'f';
+
+  const eyeY = 176 + (f.chinY - 282) * 0.25;
+  const ex = 28 + (f.cw - 68) * 0.2;
+  const mouthY = f.chinY - 44;
+  const noseY = (eyeY + mouthY) / 2 + 4;
+  const sx = Math.max(f.fw, f.cw) / 68;
+  const k = state.size / 100;
+  const hairT = `translate(150 ${150 + state.dy}) scale(${sx * k} ${k}) translate(-150 -150)`;
+  const filter = state.perm === 'none' ? '' : `filter="url(#${state.perm})"`;
+  const brow = shade(hair, 0.8);
+
+  const eye = cx => `
+    <ellipse cx="${cx}" cy="${eyeY}" rx="11" ry="6.5" fill="#fff"/>
+    <circle cx="${cx}" cy="${eyeY}" r="5.2" fill="#4a3226"/>
+    <circle cx="${cx}" cy="${eyeY}" r="2.5" fill="#1a1110"/>
+    <circle cx="${cx + 1.8}" cy="${eyeY - 1.8}" r="1.3" fill="#fff"/>
+    ${isF ? `<path d="M${cx - 12},${eyeY - 1} Q${cx},${eyeY - 11} ${cx + 13},${eyeY - 3}" stroke="#2a1d18" stroke-width="2.2" fill="none" stroke-linecap="round"/>`
+          : `<path d="M${cx - 11},${eyeY - 2} Q${cx},${eyeY - 9} ${cx + 11},${eyeY - 2}" stroke="#2a1d18" stroke-width="1.4" fill="none"/>`}`;
+  const browPath = s => `<path d="M${150 + s * (ex - 14)},${eyeY - 15} Q${150 + s * ex},${eyeY - 24} ${150 + s * (ex + 14)},${eyeY - 18}"
+      stroke="${brow}" stroke-width="${isF ? 3 : 5}" fill="none" stroke-linecap="round"/>`;
+  const mouth = isF
+    ? `<path d="M136,${mouthY} Q143,${mouthY - 5} 150,${mouthY - 2} Q157,${mouthY - 5} 164,${mouthY} Q150,${mouthY + 11} 136,${mouthY}Z" fill="#d9707a"/>`
+    : `<path d="M137,${mouthY} Q150,${mouthY + 7} 163,${mouthY}" stroke="#a9604f" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;
+  const clothes = isF ? '#c9667f' : '#3b4a6b';
+
+  $('portrait').innerHTML = `
+    <defs>
+      <linearGradient id="hg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="${shade(hair, 1.15)}"/><stop offset="1" stop-color="${shade(hair, 0.85)}"/>
+      </linearGradient>
+      <filter id="wave" x="-15%" y="-15%" width="130%" height="130%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="14" xChannelSelector="R" yChannelSelector="G"/>
+      </filter>
+      <filter id="curl" x="-15%" y="-15%" width="130%" height="130%">
+        <feTurbulence type="turbulence" baseFrequency="0.07" numOctaves="2" seed="5" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="11" xChannelSelector="R" yChannelSelector="G" result="d"/>
+        <feTurbulence type="turbulence" baseFrequency="0.13" numOctaves="1" seed="9" result="t"/>
+        <feColorMatrix in="t" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.9 -0.15" result="tm"/>
+        <feComposite in="tm" in2="d" operator="in" result="tex"/>
+        <feMerge><feMergeNode in="d"/><feMergeNode in="tex"/></feMerge>
+      </filter>
+    </defs>
+    <g transform="${hairT}" ${filter}>${hairParts(style, 'b', 'url(#hg)', hairLight, hairDark)}</g>
+    <rect x="124" y="${f.chinY - 40}" width="52" height="${350 - f.chinY}" fill="${skinDark}"/>
+    <path d="M30,400 C40,342 86,316 124,306 Q150,322 176,306 C214,316 260,342 270,400Z" fill="${clothes}"/>
+    ${isF ? '' : `<path d="M124,306 L150,336 L176,306 L166,302 L150,318 L134,302Z" fill="#fff"/>`}
+    <ellipse cx="${150 - f.cw - 2}" cy="184" rx="9" ry="16" fill="${skinDark}"/>
+    <ellipse cx="${150 + f.cw + 2}" cy="184" rx="9" ry="16" fill="${skinDark}"/>
+    <path d="${facePath(f)}" fill="${skin}" stroke="${skinDark}" stroke-width="1.2"/>
+    ${isF ? `<ellipse cx="${150 - ex - 12}" cy="${eyeY + 26}" rx="13" ry="7" fill="#f29a9a" opacity=".35"/>
+             <ellipse cx="${150 + ex + 12}" cy="${eyeY + 26}" rx="13" ry="7" fill="#f29a9a" opacity=".35"/>` : ''}
+    ${browPath(-1)}${browPath(1)}
+    ${eye(150 - ex)}${eye(150 + ex)}
+    <path d="M150,${eyeY + 12} Q147,${noseY - 2} 143,${noseY + 2} Q150,${noseY + 7} 157,${noseY + 2}" stroke="${shade(skin, 0.7)}" stroke-width="2" fill="none" stroke-linecap="round"/>
+    ${mouth}
+    <g transform="${hairT}" ${filter}>${hairParts(style, 'f', 'url(#hg)', hairLight, hairDark)}</g>
+  `;
+
+  // 궁합 점수
+  const sc = styleScore(style, state.face, state.perm);
+  $('stars').innerHTML = '★'.repeat(sc) + `<span class="off">${'★'.repeat(5 - sc)}</span>`;
+  $('verdict').textContent = `${FACES[state.face].name} × ${style.name}${state.perm === 'none' ? '' : ' + ' + PERMS[state.perm].name} · ${VERDICTS[sc]}`;
+  $('tip').textContent = '💡 ' + FACES[state.face].tip;
+
+  if (sc === 5) {
+    const key = `${GENDERS[state.gender]} ${FACES[state.face].name} × ${style.name}${state.perm === 'none' ? '' : ' ' + PERMS[state.perm].name}`;
+    if (!dex.includes(key)) {
+      dex.push(key);
+      try { localStorage.setItem('hair-dex', JSON.stringify(dex)); } catch (e) {}
+    }
+  }
+  renderDex();
+}
+
+// ---------- 컨트롤 ----------
+function chips(el, entries, isOn, onPick) {
+  el.innerHTML = '';
+  entries.forEach(([value, label]) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    if (isOn(value)) b.classList.add('on');
+    b.onclick = () => { onPick(value); update(); };
+    el.appendChild(b);
+  });
+}
+function swatches(el, colors, cur, onPick) {
+  el.innerHTML = '';
+  colors.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.className = 'swatch' + (i === cur ? ' on' : '');
+    b.style.background = c.c || c;
+    b.title = c.name || '';
+    b.onclick = () => { onPick(i); update(); };
+    el.appendChild(b);
+  });
+}
+function renderStyles() {
+  const el = $('styles');
+  el.innerHTML = '';
+  stylesFor(state.gender).filter(s => s.len === state.len).forEach(s => {
+    const b = document.createElement('button');
+    const sc = styleScore(s, state.face, state.perm);
+    b.innerHTML = `${s.name}<small>${'★'.repeat(sc)}</small>`;
+    if (s.id === state.style) b.classList.add('on');
+    b.onclick = () => { state.style = s.id; update(); };
+    el.appendChild(b);
+  });
+}
+function renderDex() {
+  const el = $('dex');
+  $('dexCount').textContent = `(${dex.length})`;
+  el.innerHTML = dex.length
+    ? dex.map(d => `<span>${d}</span>`).join('')
+    : '<span class="empty">별 5개 조합을 찾으면 여기에 모여요!</span>';
+}
+function ensureStyle() {
+  const list = stylesFor(state.gender);
+  if (!list.some(s => s.id === state.style)) state.style = list.find(s => s.len === state.len)?.id || list[0].id;
+  state.len = currentStyle().len;
+}
+function update() {
+  ensureStyle();
+  chips($('gender'), Object.entries(GENDERS), v => v === state.gender, v => { state.gender = v; });
+  chips($('face'), FACE_KEYS.map(k => [k, FACES[k].name]), v => v === state.face, v => { state.face = v; });
+  chips($('length'), Object.entries(LENGTHS), v => v === state.len, v => {
+    state.len = v;
+    state.style = stylesFor(state.gender).find(s => s.len === v).id;
+  });
+  chips($('perm'), Object.entries(PERMS).map(([k, p]) => [k, p.name]), v => v === state.perm, v => { state.perm = v; });
+  swatches($('skin'), SKINS, state.skin, i => { state.skin = i; });
+  swatches($('color'), COLORS, state.color, i => { state.color = i; });
+  renderStyles();
+  $('dy').value = state.dy;
+  $('size').value = state.size;
+  $('dy').disabled = $('size').disabled = state.locked;
+  $('lock').textContent = state.locked ? '🔒 고정됨' : '🔓 조정 중';
+  $('lock').classList.toggle('on', !state.locked);
+  render();
+}
+
+$('dy').oninput = e => { state.dy = +e.target.value; render(); };
+$('size').oninput = e => { state.size = +e.target.value; render(); };
+$('lock').onclick = () => { state.locked = !state.locked; update(); };
+
+$('recommend').onclick = () => {
+  const list = stylesFor(state.gender);
+  let best = [], top = 0;
+  list.forEach(s => Object.keys(PERMS).forEach(p => {
+    const sc = styleScore(s, state.face, p);
+    if (sc > top) { top = sc; best = []; }
+    if (sc === top) best.push([s, p]);
+  }));
+  const [s, p] = best[Math.floor(Math.random() * best.length)];
+  state.style = s.id; state.perm = p; state.len = s.len;
+  update();
+};
+$('random').onclick = () => {
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  state.face = pick(FACE_KEYS);
+  const s = pick(stylesFor(state.gender));
+  state.style = s.id; state.len = s.len;
+  state.perm = pick(Object.keys(PERMS));
+  state.color = Math.floor(Math.random() * COLORS.length);
+  update();
+};
+$('save').onclick = () => {
+  const svg = $('portrait').cloneNode(true);
+  svg.setAttribute('width', 600); svg.setAttribute('height', 800);
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }));
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas');
+    c.width = 600; c.height = 800;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#f3e9e1'; ctx.fillRect(0, 0, 600, 800);
+    ctx.drawImage(img, 0, 0, 600, 800);
+    URL.revokeObjectURL(url);
+    const a = document.createElement('a');
+    a.download = `내-헤어스타일-${currentStyle().name}.png`;
+    a.href = c.toDataURL('image/png');
+    a.click();
+  };
+  img.src = url;
+};
+
+update();
+</script>
+</body>
+</html>

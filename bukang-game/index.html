@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>부캉이 집에 가자</title>
+<style>
+  body { margin: 0; background: #0b2540; color: #fff; font-family: "Malgun Gothic", sans-serif; text-align: center; }
+  canvas { display: block; margin: 0 auto; max-width: 100%; touch-action: none; }
+  p { margin: 6px; font-size: 14px; opacity: .8; }
+</style>
+</head>
+<body>
+<canvas id="c" width="800" height="450"></canvas>
+<p>↑↓←→ 또는 마우스/손가락으로 움직이기 · 스페이스(또는 두 번 탭) 점프</p>
+<script>
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const W = 800, H = 450, GOAL = 6000;
+
+// 종류: e=이모지, hurt=다침, msg=환경 이야기
+const KINDS = {
+  fish:  { e: '🐟' },
+  bottle:{ e: '🧴' },
+  dolphin:{ e: '🐬' },
+  clam:  { e: '🐚' },
+  bag:   { e: '🛍️', hurt: 1, msg: '비닐봉지를 해파리로 착각해 먹는 바다 동물이 많아요.' },
+  net:   { e: '🕸️', hurt: 1, msg: '버려진 그물에 매년 수많은 바다 동물이 걸려 다쳐요.' },
+  hook:  { e: '🎣', hurt: 1, msg: '버려진 낚싯바늘과 줄은 바다 동물을 다치게 해요.' },
+  jelly: { e: '🪼', hurt: 1, msg: '바다가 따뜻해지면 해파리가 크게 늘어나요.' },
+  oil:   { e: '🛢️', msg: '기름이 바다에 퍼지면 물고기와 새들이 숨을 못 쉬어요.' },
+  ship:  { e: '🚢', msg: '큰 배의 소음은 바다 동물이 길을 잃게 만들어요.' },
+  hot:   { msg: '오존층이 얇아지고 지구가 더워지면 바닷물도 뜨거워져요.' },
+};
+
+let s;
+function reset() {
+  s = { x: 150, y: H / 2, dist: 0, hp: 5, food: 100, clean: 0, objs: [], t: 0,
+        msg: '', msgT: 0, jump: 0, jumpCd: 0, boost: 0, shield: 0, slow: 0, confuse: 0, hurtT: 0, state: 'play' };
+}
+reset();
+s.state = 'intro';
+
+// 시작 노래 (직접 만든 짧은 멜로디)
+function song() {
+  const a = new AudioContext(), notes = [523, 587, 659, 784, 659, 784, 880, 784, 659, 587, 523, 587, 659, 523];
+  notes.forEach((f, i) => {
+    const o = a.createOscillator(), g = a.createGain(), t = a.currentTime + i * 0.22;
+    o.type = 'triangle'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.2, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + 0.21);
+  });
+}
+function start() { song(); reset(); }
+
+// 하얀 바닷길: 부캉이가 가야 할 자연의 길
+const pathY = d => H / 2 + Math.sin(d / 400) * 110 + Math.sin(d / 170) * 30;
+
+const keys = {}, ptr = { on: false };
+onkeydown = e => { keys[e.key] = true; if (e.key === ' ') { jump(); e.preventDefault(); } if (s.state !== 'play' && e.key === 'Enter') start(); };
+onkeyup = e => keys[e.key] = false;
+const pos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; };
+cv.onpointerdown = e => { if (s.state !== 'play') return start(); ptr.on = true; [ptr.x, ptr.y] = pos(e); };
+cv.onpointermove = e => { [ptr.x, ptr.y] = pos(e); ptr.on = true; };
+cv.ondblclick = jump;
+function jump() { if (s.jumpCd <= 0) { s.jump = 0.9; s.jumpCd = 3; } }
+function say(m) { s.msg = m; s.msgT = 3; }
+
+function spawn() {
+  const r = Math.random();
+  const k = r < .28 ? 'fish' : r < .4 ? 'bottle' : r < .44 ? 'dolphin' : r < .48 ? 'clam'
+          : ['bag', 'net', 'hook', 'jelly', 'oil', 'ship', 'hot'][Math.floor(Math.random() * 7)];
+  const y = k === 'ship' ? 30 : 40 + Math.random() * (H - 80);
+  s.objs.push({ k, x: W + 40, y, r: k === 'hot' ? 70 : k === 'oil' ? 45 : 22 });
+}
+
+function update(dt) {
+  if (s.state !== 'play') return;
+  s.t += dt;
+  ['jump', 'jumpCd', 'boost', 'shield', 'slow', 'confuse', 'hurtT', 'msgT'].forEach(k => s[k] = Math.max(0, s[k] - dt));
+
+  // 움직임
+  const inv = s.confuse > 0 ? -1 : 1, sp = 260 * dt;
+  let dx = ((keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0)) * sp, dy = ((keys.ArrowDown ? 1 : 0) - (keys.ArrowUp ? 1 : 0)) * sp;
+  if (ptr.on) { dx = Math.max(-sp, Math.min(sp, ptr.x - s.x)); dy = Math.max(-sp, Math.min(sp, ptr.y - s.y)); }
+  s.x = Math.max(40, Math.min(W / 2, s.x + dx * inv));
+  s.y = Math.max(30, Math.min(H - 30, s.y + dy * inv));
+
+  const onPath = Math.abs(s.y - pathY(s.dist + s.x)) < 40;
+  let speed = 140 + (onPath ? 80 : 0) + (s.boost ? 200 : 0);
+  if (s.slow) speed *= .45;
+  if (s.food <= 0) speed *= .5;
+  s.dist += speed * dt;
+  s.food = Math.max(0, s.food - dt * (onPath ? 2 : 4));
+
+  if (Math.random() < dt * 1.6) spawn();
+  for (const o of s.objs) {
+    o.x -= speed * dt;
+    if (Math.hypot(o.x - s.x, o.y - s.y) > o.r + 28 || o.done) continue;
+    const K = KINDS[o.k];
+    if (o.k === 'hot') { s.food = Math.max(0, s.food - dt * 25); if (s.msgT <= 0) say('🔥 ' + K.msg); continue; }
+    o.done = true;
+    if (o.k === 'fish') s.food = Math.min(100, s.food + 25);
+    else if (o.k === 'bottle') { s.clean++; say('🧹 쓰레기를 치웠어요! 바다가 조금 더 맑아졌어요.'); }
+    else if (o.k === 'dolphin') { s.boost = 3; say('🐬 돌고래 친구가 데려다줘요!'); }
+    else if (o.k === 'clam') { if (Math.random() < .5) { s.shield = 6; say('🐚 깜짝 선물: 보호막!'); } else { s.boost = 3; say('🐚 깜짝 선물: 빨라지기!'); } }
+    else if (o.k === 'oil') { s.slow = 3; say(K.e + ' ' + K.msg); }
+    else if (o.k === 'ship') { s.confuse = 2.5; say(K.e + ' ' + K.msg); }
+    else if (s.jump || s.shield) o.done = false; // 점프·보호막이면 피함
+    else { s.hp--; s.hurtT = 1; say(K.e + ' ' + K.msg); }
+  }
+  s.objs = s.objs.filter(o => o.x > -100 && !(o.done && o.k !== 'hot'));
+
+  if (s.hp <= 0) s.state = 'lose';
+  if (s.dist >= GOAL) s.state = 'win';
+}
+
+function draw() {
+  // 바다: 쓰레기를 치울수록 맑아짐
+  const c = Math.min(1, s.clean / 10);
+  ctx.fillStyle = `rgb(${20 + 10 * c},${70 + 70 * c},${100 + 80 * c})`;
+  ctx.fillRect(0, 0, W, H);
+
+  // 깊이감: 위는 밝고 아래는 어둡게
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, 'rgba(255,255,255,.18)'); g.addColorStop(1, 'rgba(0,0,30,.45)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+  // 햇빛 줄기
+  ctx.fillStyle = 'rgba(255,255,220,.06)';
+  for (let i = 0; i < 4; i++) {
+    const x = 120 + i * 190 + Math.sin(s.t * .5 + i) * 25;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + 50, 0); ctx.lineTo(x - 40, H); ctx.lineTo(x - 140, H); ctx.fill();
+  }
+
+  // 멀리 있는 바위와 해초 (느리게 지나가서 멀어 보임)
+  for (const [k, a, sz, yy] of [[.3, .35, 40, H - 10], [.6, .6, 56, H + 4]]) {
+    ctx.globalAlpha = a; ctx.font = sz + 'px sans-serif'; ctx.textAlign = 'center';
+    for (let i = 0; i < 8; i++) {
+      const x = ((i * 137 - s.dist * k) % (W + 150) + W + 150) % (W + 150) - 60;
+      ctx.fillText(i % 3 ? '🌿' : '🪨', x, yy - (i % 2) * 14);
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // 올라가는 물방울
+  ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 1.5;
+  for (let i = 0; i < 18; i++) {
+    const x = (i * 53 + Math.sin(s.t * 2 + i) * 6) % W, y = H - ((s.t * (30 + i % 5 * 12) + i * 71) % (H + 20));
+    ctx.beginPath(); ctx.arc(x, y, 2 + i % 4, 0, 7); ctx.stroke();
+  }
+
+  // 바닥에 비친 부캉이 그림자
+  ctx.fillStyle = 'rgba(0,0,0,.25)';
+  ctx.beginPath(); ctx.ellipse(s.x, H - 14, 40 - s.y / 20, 7, 0, 0, 7); ctx.fill();
+
+  // 하얀 바닷길
+  ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 70; ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let x = 0; x <= W; x += 20) ctx.lineTo(x, pathY(s.dist + x));
+  ctx.stroke();
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const o of s.objs) {
+    if (o.k === 'hot') { ctx.fillStyle = 'rgba(255,80,40,.35)'; ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, 7); ctx.fill(); ctx.font = '24px sans-serif'; ctx.fillText('🔥', o.x, o.y); continue; }
+    if (o.k === 'oil') { ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, 7); ctx.fill(); }
+    ctx.font = (o.k === 'ship' ? 54 : 32) + 'px sans-serif';
+    ctx.fillText(KINDS[o.k].e, o.x, o.y);
+  }
+
+  // 부캉이 (오른쪽을 보도록 뒤집기)
+  const lift = s.jump ? Math.sin((0.9 - s.jump) / 0.9 * Math.PI) * 30 : 0;
+  ctx.save(); ctx.translate(s.x, s.y - lift); ctx.scale(-1, 1);
+  ctx.globalAlpha = s.hurtT && Math.floor(s.t * 10) % 2 ? .4 : 1;
+  ctx.font = '76px sans-serif'; ctx.fillText('🦈', 0, 0);
+  ctx.fillStyle = 'rgba(255,120,150,.7)'; ctx.beginPath(); ctx.arc(-22, 8, 6, 0, 7); ctx.fill(); // 볼터치
+  ctx.restore();
+  ctx.font = 'bold 14px sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText('부캉이 💙', s.x, s.y - lift - 46);
+  if (s.shield) { ctx.strokeStyle = '#8ef'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(s.x, s.y - lift, 34, 0, 7); ctx.stroke(); }
+
+  // 상태 표시
+  ctx.textAlign = 'left'; ctx.font = '18px sans-serif'; ctx.fillStyle = '#fff';
+  ctx.fillText('❤️'.repeat(s.hp) + '🤍'.repeat(5 - s.hp), 12, 22);
+  ctx.fillText('배고픔', 12, 50);
+  ctx.fillStyle = '#333'; ctx.fillRect(75, 42, 120, 14);
+  ctx.fillStyle = s.food > 30 ? '#6d6' : '#e55'; ctx.fillRect(75, 42, 1.2 * s.food, 14);
+  ctx.fillStyle = '#fff'; ctx.fillText('🧴 ' + s.clean, 210, 50);
+  ctx.fillText('점프 ' + (s.jumpCd ? '⏳' : '✅'), 270, 50);
+  // 집까지 거리
+  ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(W - 220, 14, 200, 10);
+  ctx.fillStyle = '#ffd54a'; ctx.fillRect(W - 220, 14, 200 * Math.min(1, s.dist / GOAL), 10);
+  ctx.fillText('🏠', W - 20, 20);
+
+  if (s.msgT) {
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(40, H - 60, W - 80, 40);
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = '16px sans-serif';
+    ctx.fillText(s.msg, W / 2, H - 40);
+  }
+
+  if (s.state !== 'play') {
+    ctx.fillStyle = 'rgba(0,20,40,.85)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+    if (s.state === 'intro') {
+      ctx.font = '110px sans-serif'; ctx.fillText('🦈', W / 2, 95);
+      ctx.font = 'bold 40px sans-serif'; ctx.fillText('부캉이', W / 2, 180);
+      ctx.font = '20px sans-serif';
+      ctx.fillText('부캉이가 지금 길을 잃었어요.', W / 2, 230);
+      ctx.fillText('길을 찾아주세요!', W / 2, 260);
+      ctx.font = 'bold 26px sans-serif'; ctx.fillText('▶ 클릭해서 시작', W / 2, 300);
+    } else if (s.state === 'win') {
+      const stars = s.hp >= 5 ? 3 : s.hp >= 3 ? 2 : 1;
+      ctx.font = 'bold 34px sans-serif'; ctx.fillText('🏅 바다 지킴이 상장 🏅', W / 2, 110);
+      ctx.font = '40px sans-serif'; ctx.fillText('⭐'.repeat(stars) + '☆'.repeat(3 - stars), W / 2, 175);
+      ctx.font = '18px sans-serif';
+      ctx.fillText(`부캉이가 무사히 집에 도착했어요! 치운 쓰레기 ${s.clean}개`, W / 2, 230);
+      ctx.fillText('우리가 바다를 지키는 방법', W / 2, 280);
+      ctx.fillText('🛍️ 비닐·플라스틱 줄이기 · 🗑️ 바닷가 쓰레기 줍기 · 🌍 에너지 아끼기', W / 2, 310);
+    } else {
+      ctx.font = 'bold 32px sans-serif'; ctx.fillText('부캉이가 너무 많이 다쳤어요 😢', W / 2, 180);
+    }
+    if (s.state !== 'intro') { ctx.font = '18px sans-serif'; ctx.fillText('클릭하거나 Enter를 누르면 다시 시작', W / 2, 380); }
+  }
+}
+
+let last = performance.now();
+(function loop(now) {
+  update(Math.min(0.05, (now - last) / 1000)); last = now;
+  draw(); requestAnimationFrame(loop);
+})(last);
+</script>
+</body>
+</html>
